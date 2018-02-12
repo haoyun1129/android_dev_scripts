@@ -1,0 +1,65 @@
+#!/bin/bash
+
+check_dir_exist() {
+    echo "[CHECK] \"$1\" dir exist..."
+    if [ ! -d $1 ]; then
+        echo "$2"
+        exit 1
+    fi
+}
+check_file_exist() {
+    echo "[CHECK] \"$1\" file exist..."
+    if [ ! -f $1 ]; then
+        echo "$2"
+        exit 1
+    fi
+}
+
+check_command() {
+    echo "[CHECK] \"$1\" command..."
+    command -v $1 > /dev/null 2>&1 || { echo "$1 command is required, please install it and set \$PATH properly" >&2; exit 1; }
+}
+
+if [ "$#" -ne 1 ]; then
+    echo "Change dir to where android.jar locates and execute this command"
+    echo "Usage: $0 <ANDROID_ROOT>"
+    exit 1
+fi
+
+ANDROID_ROOT=$1
+CLASSES_PATH="/out/target/common/obj/JAVA_LIBRARIES/framework_intermediates/classes.jar"
+CLASSES_JAR="$ANDROID_ROOT$CLASSES_PATH"
+
+#echo "Checking ANDROID_ROOT=\"$ANDROID_ROOT\""
+
+check_dir_exist $ANDROID_ROOT "Android Root is incorrect?"
+check_file_exist $CLASSES_JAR "classes.jar not found, Android build is not finished?"
+
+if [ -f android.jar.bak ]; then
+    echo "[BACKUP] android.jar already backup"
+else
+    echo "[BACKUP] android.jar to android.jar.bak..."
+    cp android.jar android.jar.bak
+fi
+
+check_command jar
+check_command zip
+check_command unzip
+
+TEMP="$(mktemp -d)"
+trap "rm -rf $TEMP" EXIT
+
+echo "[UNZIP] android.jar.bak..."
+unzip -q android.jar.bak -d $TEMP 
+echo "[UNZIP] classes.jar..."
+unzip -q -o $CLASSES_JAR -d $TEMP
+
+pushd $TEMP > /dev/null
+echo "[JAR] create android.jar..."
+jar cfm android.jar ./META-INF/MANIFEST.MF ./
+popd > /dev/null
+
+echo "[REPLACE] update android.jar"
+cp $TEMP/android.jar .
+
+echo "[COMPLETE] android.jar is updated successfully."
